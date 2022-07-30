@@ -1,58 +1,56 @@
 <template>
   <ion-app>
-    <ion-split-pane content-id="main-content">
-      <ion-menu content-id="main-content" type="overlay">
-        <ion-content>
-          <ion-list id="inbox-list">
-            <ion-list-header>Inbox</ion-list-header>
-            <ion-note>hi@ionicframework.com</ion-note>
-  
-            <ion-menu-toggle auto-hide="false" v-for="(p, i) in appPages" :key="i">
-              <ion-item @click="selectedIndex = i" router-direction="root" :router-link="p.url" lines="none" detail="false" class="hydrated" :class="{ selected: selectedIndex === i }">
-                <ion-icon slot="start" :ios="p.iosIcon" :md="p.mdIcon"></ion-icon>
-                <ion-label>{{ p.title }}</ion-label>
-              </ion-item>
-            </ion-menu-toggle>
-          </ion-list>
-  
-          <ion-list id="labels-list">
-            <ion-list-header>Labels</ion-list-header>
-  
-            <ion-item v-for="(label, index) in labels" lines="none" :key="index">
-              <ion-icon slot="start" :ios="bookmarkOutline" :md="bookmarkSharp"></ion-icon>
-              <ion-label>{{ label }}</ion-label>
-            </ion-item>
-          </ion-list>
-        </ion-content>
-      </ion-menu>
-      <ion-router-outlet id="main-content"></ion-router-outlet>
+    <ion-split-pane content-id="main">
+      <Panel />
+      <ion-router-outlet id="main"></ion-router-outlet>
     </ion-split-pane>
   </ion-app>
 </template>
 
-<script lang="ts">
-import { IonApp, IonContent, IonIcon, IonItem, IonLabel, IonList, IonListHeader, IonMenu, IonMenuToggle, IonNote, IonRouterOutlet, IonSplitPane } from '@ionic/vue';
-import { defineComponent, ref } from 'vue';
-import { useRoute } from 'vue-router';
-import { archiveOutline, archiveSharp, bookmarkOutline, bookmarkSharp, heartOutline, heartSharp, mailOutline, mailSharp, paperPlaneOutline, paperPlaneSharp, trashOutline, trashSharp, warningOutline, warningSharp } from 'ionicons/icons';
+<script lang="ts" setup>
+  import { IonApp, IonRouterOutlet, IonSplitPane } from '@ionic/vue';
+  import { ref, onUnmounted } from 'vue';
+  import { archiveOutline, archiveSharp, heartOutline, heartSharp, mailOutline, mailSharp, paperPlaneOutline, paperPlaneSharp, trashOutline, trashSharp, warningOutline, warningSharp } from 'ionicons/icons';
+  import useAuth from './data/useAuth'
+  import { collection, query, onSnapshot, doc } from "firebase/firestore";
+  import { db } from './data/firebase';
+  import useDepartmentStore from './data/departmentStore'
+  import useEmployeeStore from './data/employeeStore'
+  import Panel from './views/panel.vue';
+  import { Employee } from './data/types';
 
-export default defineComponent({
-  name: 'App',
-  components: {
-    IonApp, 
-    IonContent, 
-    IonIcon, 
-    IonItem, 
-    IonLabel, 
-    IonList, 
-    IonListHeader, 
-    IonMenu, 
-    IonMenuToggle, 
-    IonNote, 
-    IonRouterOutlet, 
-    IonSplitPane,
-  },
-  setup() {
+  const unsubscribeDepartments = onSnapshot(doc(db, "lookups", "d"), doc => {
+    const store = useDepartmentStore()
+    store.setDepartments(doc.data()?.values)
+  })
+  const q = query(collection(db, "employees"));
+  const unsubscribeEmployees = onSnapshot(q, (querySnapshot) => {
+    let employees: Employee[] = []
+    querySnapshot.forEach((doc) => {
+      employees.push({
+        id: doc.id,
+        name: doc.data().name,
+        departmentId: doc.data().departmentId,
+        job: doc.data().job,
+        gender: doc.data().gender,
+        salary: doc.data().salary,
+        birthDate: doc.data().birthDate,
+        joinDate: doc.data().joinDate,
+        mobile: doc.data().mobile,
+        address: doc.data().address,
+        image: doc.data().image
+      })
+    })
+    const store = useEmployeeStore()
+    store.setEmployees(employees)
+  }, err => {
+    unsubscribeEmployees()
+  })  
+  onUnmounted(() => {
+    unsubscribeDepartments()
+    unsubscribeEmployees()
+  })
+
     const selectedIndex = ref(0);
     const appPages = [
       {
@@ -62,8 +60,8 @@ export default defineComponent({
         mdIcon: mailSharp
       },
       {
-        title: 'Outbox',
-        url: '/folder/Outbox',
+        title: 'Login',
+        url: '/login',
         iosIcon: paperPlaneOutline,
         mdIcon: paperPlaneSharp
       },
@@ -96,33 +94,12 @@ export default defineComponent({
     
     const path = window.location.pathname.split('folder/')[1];
     if (path !== undefined) {
+      console.log('selected index ... ')
       selectedIndex.value = appPages.findIndex(page => page.title.toLowerCase() === path.toLowerCase());
     }
     
-    const route = useRoute();
-    
-    return { 
-      selectedIndex,
-      appPages, 
-      labels,
-      archiveOutline, 
-      archiveSharp, 
-      bookmarkOutline, 
-      bookmarkSharp, 
-      heartOutline, 
-      heartSharp, 
-      mailOutline, 
-      mailSharp, 
-      paperPlaneOutline, 
-      paperPlaneSharp, 
-      trashOutline, 
-      trashSharp, 
-      warningOutline, 
-      warningSharp,
-      isSelected: (url: string) => url === route.path ? 'selected' : ''
-    }
-  }
-});
+    const { user } = useAuth()
+    console.log('updated...')
 </script>
 
 <style scoped>
